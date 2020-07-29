@@ -404,3 +404,4 @@ def find_balance_sheet_pages(agg_text):
     print(statement_page_list, '\n')
 
     return([x for x in BS_page_list if x not in list(notes_page_list) + list(statement_page_list)] + list(pos_page_list))
+
