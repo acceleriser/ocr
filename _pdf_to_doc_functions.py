@@ -383,6 +383,12 @@ def find_balance_sheet_pages(agg_text):
     GBS_page_list = pd.unique(agg_text[agg_text['text'].apply(lambda x: np.where(re.search("^consolidatedstatementoffin", x), True, False))]['csv_num'])
     BS_page_list = np.append(BS_page_list, GBS_page_list)
 
+    GBS_page_list = pd.unique(agg_text[agg_text['text'].apply(lambda x: np.where(re.search("^abridgedstatementoffin", x), True, False))]['csv_num'])
+    BS_page_list = np.append(BS_page_list, GBS_page_list)
+
+    GBS_page_list = pd.unique(agg_text[agg_text['text'].apply(lambda x: np.where(re.search("^micro-entitybal", x), True, False))]['csv_num'])
+    BS_page_list = np.append(BS_page_list, GBS_page_list)
+
     BS_page_list = np.unique(BS_page_list, axis=0)
     print(BS_page_list, '\n')
 

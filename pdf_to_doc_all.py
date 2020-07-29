@@ -55,9 +55,9 @@ def clean_dir(mydir):
     for f in filelist:
         os.remove(os.path.join(mydir, f))
 
-if False:        
-    clean_dir(pdf_dir)
-    clean_dir(pdf_repaired_dir)
+if True:
+    #clean_dir(pdf_dir)
+    #clean_dir(pdf_repaired_dir)
     clean_dir(img_dir)
     clean_dir(img_pro_dir)
     #clean_dir(csv_dir)
