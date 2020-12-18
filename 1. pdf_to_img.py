@@ -27,14 +27,16 @@ import _multiprocessing_worker_pdf_to_png as mpw
 processors = multiprocessing.cpu_count() 
 print('processors: ', processors)
 
-
 # Get a list of all of the pdf files in the directory "example_data_PDF"
-pdf_dir = "./pdf/"
-img_dir = "./img/"
-img_pro_dir = "./img_pro/"
-csv_dir = "./csv/"
-doc_dir = "./doc/"
+home_dir = os.path.expanduser("~") + '/Data/PDF/'
+pdf_dir = home_dir + "Original/"
+pdf_repaired_dir = home_dir + "Repaired/"
+img_dir = home_dir + "Img/"
+img_pro_dir = home_dir + "Img_pro/"
+csv_dir = home_dir + "csv/"
+doc_dir = home_dir + "doc/"
 
+print(pdf_dir)
 
 def imageplot(image):
     plt.imshow(image, cmap = 'Greys_r')
@@ -51,7 +53,7 @@ files = [pdf_dir + filename for filename in os.listdir(pdf_dir) if ".pdf" in fil
 total_files = len(files) + 1
 tic = timer()
 
-threads = max(1, int(processors / 2))
+threads = max(1, int(processors - 2))
 print('Threads used: ', threads, ' total_files =', total_files, ' time now ', int(tic))
         
 results = pd.DataFrame()
@@ -105,7 +107,7 @@ if single_thread:
 img_files = [img_dir + filename for filename in os.listdir(img_dir) if ".png" in filename]
 print(len(img_files), 'image files')
 
-print("Pre-processing on all png images (multicore)")
+print("Pre-processing on all png images")
 
 def preprocess(pngname, img_pro_dir = img_pro_dir):
     img_name = pngname.split('/')[-1]

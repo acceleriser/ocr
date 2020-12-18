@@ -31,23 +31,30 @@ processors = cpu_count()
 print(processors, 'processors')
 
 # Get a list of all of the pdf files in the directory "example_data_PDF"
-pdf_dir = "./pdf/"
-pdf_repaired_dir = "./pdfr/"
-img_dir = "./img/"
-img_pro_dir = "./img_pro/"
-csv_dir = "./csv/"
-doc_dir = "./doc/"
+home_dir = os.path.expanduser("~") + '/Data/PDF/'
+pdf_dir = home_dir + "Original/"
+pdf_repaired_dir = home_dir + "Repaired/"
+img_dir = home_dir + "Img/"
+img_pro_dir = home_dir + "Img_pro/"
+csv_dir = home_dir + "csv/"
+doc_dir = home_dir + "doc/"
 
 # read file names from pdf folder
-files = [pdf_dir + filename for filename in os.listdir(pdf_dir) if ".pdf" in filename]
+files = [pdf_dir + filename for filename in os.listdir(pdf_dir) 
+         if ".pdf" in filename]
 total_files = len(files)
 print(total_files, 'files')
 
-single_thread = False
-multi_thread = True
-repair = False # for malformed PDFs
-
 t0 = timer()
+
+# Execution options
+multi_thread = True
+
+start_new = False
+clean_dirs = True # if starting new
+repair_pdfs = False # for malformed PDFs
+
+
 
 # %%
 def clean_dir(mydir):
@@ -55,7 +62,7 @@ def clean_dir(mydir):
     for f in filelist:
         os.remove(os.path.join(mydir, f))
 
-if True:
+if start_new and clean_dirs:
     #clean_dir(pdf_dir)
     #clean_dir(pdf_repaired_dir)
     clean_dir(img_dir)
@@ -70,13 +77,9 @@ def worker0(wfile):  # multi-thread worker
     wretval = fn.repairpdf(wfile, save_dir=pdf_repaired_dir)
     return wretval
 
-if repair:
+if start_new and repair_pdfs:
     print('starting pdf repairs')
-    if single_thread:
-        for file in files:
-            retval = fn.repairpdf(file, save_dir=pdf_repaired_dir)
-        print('repair ended')
-    else:
+    if multi_thread:
         tic = timer()
         threads = max(1, int(processors))
         print(threads, 'threads used', ' total_files =', total_files, ' time now ', int(tic - t0))
@@ -93,28 +96,17 @@ if repair:
         print('taking a break to allow for pdftocairo to complete')
         sleep(3)
         print('break ended, continuing')
+    else: #single thread
+        for file in files:
+            retval = fn.repairpdf(file, save_dir=pdf_repaired_dir)
+        print('repair ended')
 
     files = [pdf_repaired_dir + filename for filename in os.listdir(pdf_repaired_dir) if ".pdf" in filename]
     total_files = len(files)
 
 
-# %% Convert PDFs to images, single thread
+# %% Convert PDFs to images
 tic = timer()
-
-if single_thread:
-    # Process single PDF to multiple png files of individual pages
-    tac = timer()
-    for file in files:
-        tic = timer()
-        doc = file.split('/')[-1].strip(".pdf")
-
-        retval = subprocess.call("pdftocairo -r 300 -png " + file + " " + img_dir + doc, shell=True)
-        print(doc, retval)
-        print('Converting ', file, 'to images took: ', int(timer()-tic), 'seconds')
-
-    print(int(timer() - tac), 'seconds for single thread calculations')
-
-# %% Convert PDFs to images, multiprocessing
 
 def worker1(wfile):  # multi-thread worker
     """Process single PDF to multiple png filenames of individual pages"""
@@ -123,74 +115,82 @@ def worker1(wfile):  # multi-thread worker
     wretval = subprocess.call("pdftocairo -r 300 -png " + wfile + " " + img_dir + wdoc, shell=True)
     return wretval
 
-if multi_thread:
-    tic = timer()
-    threads = max(1, int(processors))
-    print(threads, 'threads used', ' total_files =', total_files, ' time now ', int(tic - t0))
+# Process single PDF to multiple png files of individual pages
+if start_new:
+    if multi_thread:
+        tic = timer()
+        threads = max(1, int(processors - 1))
+        print(threads, 'threads used', ' total_files =', total_files, ' time now ', int(tic - t0))
+    
+        if __name__ == '__main__':
+            with Pool(processes=threads) as pool:
+                output = pool.map(worker1, files, chunksize=1)
+                pool.close()
+                pool.join()
+    
+            print(output)
+            print('\n', int(timer() - tic), "seconds for exploding pdf into images")
+    
+        print('taking a break to allow pdftocairo complete operations')
+        sleep(10)
+        print('break ended, continuing')
+    else: #single thread
+        tac = timer()
+        for file in files:
+            tic = timer()
+            doc = file.split('/')[-1].strip(".pdf")
+    
+            retval = subprocess.call("pdftocairo -r 300 -png " + file + " " + img_dir + doc, shell=True)
+            print(doc, retval)
+            print('Converting ', file, 'to images took: ', int(timer()-tic), 'seconds')
+    
+        print(int(timer() - tac), 'seconds for single thread calculations')
 
-    if __name__ == '__main__':
-        with Pool(processes=threads) as pool:
-            output = pool.map(worker1, files, chunksize=1)
-            pool.close()
-            pool.join()
-
-        print(output)
-        print('\n', int(timer() - tic), "seconds for exploding pdf into images")
-
-    print('taking a break to allow for pdftocairo to complete')
-    sleep(5)
-    print('break ended, continuing')
 
 # %% Preprocess all images by applying a number of cleaning steps to them
-img_pro_files = [img_pro_dir + filename for filename in os.listdir(img_pro_dir) if ".png" in filename]
-for f in img_pro_files:
-    os.remove(f)
 
 # find all of the converted pages
 img_files = [img_dir + filename for filename in os.listdir(img_dir) if ".png" in filename]
 total_files = len(img_files)
 print(total_files, 'image files')
 
-# %%
-if single_thread:
-    t1 = timer()
-    for item in range(total_files):
-        fn.preprocess(img_files[item], save_dir=img_pro_dir)
-        if item % 100 == 0:
-            print(int(item * 100 / total_files), '%', end=" ")
 
-    print('\n', int(timer()-t1), 'seconds for single-thread pre-processing')
-
-
-# %%
-def worker2(wfile):
+def worker2(wfile): # multiprocessing worker
     """Pre-process single image"""
     wretval = fn.preprocess(wfile, save_dir=img_pro_dir)
     print('.', end='')
     return wretval
 
-img_pro_files = [img_pro_dir + filename for filename in os.listdir(img_pro_dir) if ".png" in filename]
-for f in img_pro_files:
-    os.remove(f)
+if start_new:
+    img_pro_files = [img_pro_dir + filename for filename in os.listdir(img_pro_dir) if ".png" in filename]
+    for f in img_pro_files:
+        os.remove(f) # clean results folder
+    
+    if multi_thread:  # multi-thread processing
+        tic = timer()
+        threads = max(1, int(processors)) #find the sweet spot for speed
+        print(threads, 'threads used', ' total_files =', total_files, ' time now ', int(tic - t0))
+    
+        if __name__ == '__main__':
+            with Pool(processes=threads) as pool:
+                output = pool.map(worker2, img_files, chunksize=1)
+                pool.close()
+                pool.join()
+    
+        print('\n', int(timer() - tic), "seconds for parallel pre-processing")
+        
+    else: # single thread processing
+        t1 = timer()
+        for item in range(total_files):
+            fn.preprocess(img_files[item], save_dir=img_pro_dir)
+            if item % 100 == 0:
+                print(int(item * 100 / total_files), '%', end=" ")
+    
+        print('\n', int(timer()-t1), 'seconds for single-thread pre-processing')
 
-
-if multi_thread:  #multi-thread worker
-    tic = timer()
-    threads = max(1, int(processors)) #a fraction of total threads that seems to be the sweet spot for speed
-    print(threads, 'threads used', ' total_files =', total_files, ' time now ', int(tic - t0))
-
-    if __name__ == '__main__':
-        with Pool(processes=threads) as pool:
-            output = pool.map(worker2, img_files, chunksize=1)
-            pool.close()
-            pool.join()
-
-    print('\n', int(timer() - tic), "seconds for parallel pre-processing")
 
 # %% Images to csv
 
-
-# %%
 #read file names from pdf folder
 files = [img_pro_dir + filename for filename in os.listdir(img_pro_dir) if ".png" in filename]
 
@@ -198,92 +198,82 @@ files = [img_pro_dir + filename for filename in os.listdir(img_pro_dir) if ".png
 docs = [file.split('/')[-1].strip(".pdf") for file in files]
 print(len(docs), 'files')
 
-# %% Apply OCR to every page, single thread
-if single_thread:
-    data = pd.DataFrame()
-    csv_num = 0
-    tic = timer()
-
-    for pngpath in files:
-        print(pngpath)
-        image = im.open(pngpath)
-        #imageplot(image)
-
-
-        ocr_obj = pytesseract.image_to_data(image)
-        #print(ocr_obj)
-        #ocr2 = pytesseract.image_to_string(image)
-        #print(ocr2)
-
-        page_df = pd.read_csv(StringIO(ocr_obj),
-                              sep='\t',
-                              error_bad_lines=True,
-                              quoting=csv.QUOTE_NONE,
-                              engine='python')
-
-        page_df['csv_num'] = csv_num
-        page_df['png_path'] = pngpath
-        csv_num += 1
-
-        data = data.append(page_df)
-
-    print(data)
-    print(int(timer() - tic), "seconds for single-thread OCR")
-
-
-# %% Apply OCR, multiprocessing
-
+# Apply OCR to every page
 def worker3(wargs):
     """Apply OCR to an individual file"""
     print('.', end='')
     w_pngpath, w_csv_num = wargs
     w_image = im.open(w_pngpath)
-
     w_ocr_obj = pytesseract.image_to_data(w_image)
-
     w_page_df = pd.read_csv(StringIO(w_ocr_obj),
                             sep='\t',
                             error_bad_lines=True,
                             quoting=csv.QUOTE_NONE,
                             engine='python')
-
-    w_page_df['csv_num'] = w_csv_num
     w_page_df['png_path'] = w_pngpath
+    w_page_df['csv_num'] = w_csv_num
     return w_page_df
 
-if multi_thread:
-    tic = timer()
-    data = pd.DataFrame()
-    threads = max(1, int(processors / 3))  # too slow if run at all threads
-    print('Threads used: ', threads, ' total_files =', len(files), ' time now ', int(tic - t0))
+if start_new:
+    if multi_thread: # multi-thread processing
+        tic = timer()
+        data = pd.DataFrame()
+        threads = max(1, int(processors / 3))  # too slow if run at all threads
+        print('Threads used: ', threads, ' total_files =', len(files), ' time now ', int(tic - t0))
+    
+        if __name__ == '__main__':
+            with Pool(processes=threads) as pool:
+                args = ((files[i], i) for i in range(len(files)))
+                output = pool.map(worker3, args, chunksize=1)
+                pool.close()
+                pool.join()
+    
+        output = pd.concat(output)
+        data = output
+        print('\n', int(timer() - tic), "seconds for parallel OCR")
+        print(data)
+    
+    else: # single thread processing
+        data = pd.DataFrame()
+        csv_num = 0
+        tic = timer()
+    
+        for pngpath in files:
+            print(pngpath)
+            image = im.open(pngpath)
+            #imageplot(image)
+    
+            ocr_obj = pytesseract.image_to_data(image)
+            #print(ocr_obj)
+            #ocr2 = pytesseract.image_to_string(image)
+            #print(ocr2)
+    
+            page_df = pd.read_csv(StringIO(ocr_obj),
+                                  sep='\t',
+                                  error_bad_lines=True,
+                                  quoting=csv.QUOTE_NONE,
+                                  engine='python')
+    
+            page_df['csv_num'] = csv_num
+            page_df['png_path'] = pngpath
+            csv_num += 1
+    
+            data = data.append(page_df)
+    
+        print(data)
+        print(int(timer() - tic), "seconds for single-thread OCR")
 
-    if __name__ == '__main__':
-        with Pool(processes=threads) as pool:
-            args = ((files[i], i) for i in range(len(files)))
-            output = pool.map(worker3, args, chunksize=1)
-            pool.close()
-            pool.join()
-
-    output = pd.concat(output)
-    data = output
-
-    print('\n', int(timer() - tic), "seconds for parallel OCR")
+    data = fn.make_measurements(data)
     print(data)
-
-
-# %%
-data = fn.make_measurements(data)
-print(data)
-
-data['numerical'] = fn.convert_to_numeric(data['text'])
-data.to_csv(csv_dir + 'data.csv')
-# print(data)
-
+    
+    data['numerical'] = fn.convert_to_numeric(data['text'])
+    data.to_csv(csv_dir + 'data.csv', sep='\t')
+    # print(data)
 
 # %% Start from here if data is saved
 ###############################################################
 
-datar = pd.read_csv(csv_dir + 'data.csv', header=0, index_col=0)
+datar = pd.read_csv(csv_dir + 'data.csv', header=0,  sep='\t')
 print(datar[:3])
 #print(data.equals(datar))
 
@@ -309,7 +299,7 @@ def worker4(w_dat):
     return w_retval
 
 
-if multi_thread:
+if start_new and multi_thread:
     tic = timer()
     threads = max(1, int(processors))
     print(threads, 'threads used', ' total_files =', max_csv, ' time now ', int(tic - t0))
@@ -322,14 +312,13 @@ if multi_thread:
 
     print('\n', int(timer() - tic), "seconds for parallel aggregation")
 
-output = pd.concat(output)
+    aggregate_full = pd.concat(output)
+    
+    aggregate_full['png'] = aggregate_full.csv_num.map(dictionary)
+    aggregate_full.to_csv(csv_dir + 'aggregate_full.csv', sep='\t')
 
-output['png'] = output.csv_num.map(dictionary)
-output.to_csv(csv_dir + 'aggregate_full.csv')
 
-
-# %%
-
+# %% Create a table with aggregated sentences over lines
 
 def worker5(w_dat):
     """aggregate sentences for one file"""
@@ -337,45 +326,45 @@ def worker5(w_dat):
     print('.', end='')
     return w_retval
 
-if multi_thread:
-    tic = timer()
-    threads = max(1, int(processors))
-    print(threads, 'threads used', ' total_files =', max_csv, ' time now ', int(tic - t0))
-
-    if __name__ == '__main__':
-        with Pool(processes=threads) as pool:
-            output = pool.map(worker5, dat_files, chunksize=1)
-            pool.close()
-            pool.join()
-
-    print('\n', int(timer() - tic), "seconds for parallel aggregation into lines")
-
-    output = pd.concat(output)
-    output.to_csv(csv_dir + 'aggregate_fin.csv')
+if start_new:
+    if multi_thread:
+        tic = timer()
+        threads = max(1, int(processors))
+        print(threads, 'threads used', ' total_files =', max_csv, ' time now ', int(tic - t0))
+    
+        if __name__ == '__main__':
+            with Pool(processes=threads) as pool:
+                output = pool.map(worker5, dat_files, chunksize=1)
+                pool.close()
+                pool.join()
+    
+        print('\n', int(timer() - tic), "seconds for parallel aggregation into lines")
+    
+        aggregate_fin = pd.concat(output)
+        aggregate_fin.to_csv(csv_dir + 'aggregate_fin.csv', sep='\t')
+    else: # single thread processing
+        print(len(dat_files))
+        tic = timer()
+        agg_text = pd.DataFrame()
+        output = []
+        i = 0
+        for dat in dat_files:
+            output.append(fn.aggregate_sentences_over_lines(dat))
+            print(len(output), len(output[i]))
+            i += 1
+    
+        aggregate_fin = pd.concat(output)
+        aggregate_fin.to_csv(csv_dir + 'aggregate_fin_single.csv', sep='\t')
+        print("processing time: ", int(timer() - tic))
+else:
+    aggregate_fin = pd.read_csv(csv_dir + 'aggregate_fin.csv', header=0,  
+                                sep='\t')
 
 # %%
-if single_thread:
-    # Create a table with aggregated sentences over lines
-    print(len(dat_files))
-    tic = timer()
-    agg_text = pd.DataFrame()
-    output = []
-    i = 0
-    for dat in dat_files:
-        output.append(fn.aggregate_sentences_over_lines(dat))
-        print(len(output), len(output[i]))
-        i += 1
-
-    output = pd.concat(output)
-    output.to_csv(csv_dir + 'aggregate_fin_single.csv')
-    print("processing time: ", int(timer() - tic))
-
-
-# %%
-csv_numbers = fn.find_balance_sheet_pages(output)
+csv_numbers = fn.find_balance_sheet_pages(aggregate_fin)
 
 csv_numbers = pd.Series(csv_numbers)
-print(csv_numbers)
+#print(csv_numbers)
 
 bs_map = pd.concat([csv_numbers, csv_numbers.map(dictionary)], axis=1)
 print(bs_map)
@@ -384,26 +373,66 @@ bs_map.to_csv(csv_dir + 'bs_map.csv')
 
 # %%
 results = pd.DataFrame()
-
 # Iterate through balance sheet pages, retrieve everything
-for csv_num in csv_numbers:
-    page_df = datar[datar['csv_num'] == csv_num]
 
+page_dfs_ = [datar[datar.csv_num == csv_num] for csv_num in csv_numbers]
+
+def worker6(csv_num):
+    """retrieve financial indicators"""
     # Determine where the lines are
-    detected_lines = fn.detect_lines(page_df)
+    page_df_local = datar[datar['csv_num'] == csv_num].copy()
+    detected_lines = fn.detect_lines(page_df_local)
 
     # Get all detectable balance sheet stats
-    detectable_stats = fn.extract_lines(page_df, detected_lines) #
+    detectable_stats = fn.extract_lines(page_df_local, detected_lines) #
 
     #add file ID
     doc = dictionary[csv_num].split('/')[-1].strip(".pdf")
-    print(doc)
+    #print(doc)
     detectable_stats['png'] = doc
     detectable_stats['csv_num'] = csv_num
+    
+    print('.', end='')
+    return detectable_stats
 
-    results = results.append(detectable_stats)
+if multi_thread:
+    tic = timer()
+    threads = max(1, int(processors))
+    print(threads, 'threads used', ' total_files =', len(csv_numbers), ' time now ', int(tic - t0))
 
-results.to_csv(csv_dir + 'results.csv')
+    if __name__ == '__main__':
+        with Pool(processes=threads) as pool:
+            output = pool.map(worker6, csv_numbers, chunksize=1)
+            pool.close()
+            pool.join()
+
+    print('\n', int(timer() - tic), "seconds for parallel aggregation into lines")
+
+    output = pd.concat(output)
+    output.to_csv(csv_dir + 'results.csv')
+    results = output.copy()
+
+else: # single thread processing
+    for csv_num in csv_numbers:
+        page_df = datar[datar['csv_num'] == csv_num]
+    
+        # Determine where the lines are
+        detected_lines = fn.detect_lines(page_df)
+    
+        # Get all detectable balance sheet stats
+        detectable_stats = fn.extract_lines(page_df, detected_lines) #
+    
+        #add file ID
+        doc = dictionary[csv_num].split('/')[-1].strip(".pdf")
+        print(doc)
+        detectable_stats['png'] = doc
+        detectable_stats['csv_num'] = csv_num
+    
+        results = results.append(detectable_stats)
+
+    results.to_csv(csv_dir + 'results.csv')
+
+# we are here
 
 # %%
 full_results = pd.DataFrame()

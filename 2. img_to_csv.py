@@ -32,11 +32,13 @@ print('processors: ', processors)
 
 
 # Get a list of all of the pdf files in the directory "example_data_PDF"
-pdf_dir = "./pdf/"
-img_dir = "./img/"
-img_pro_dir = "./img_pro/"
-csv_dir = "./csv/"
-doc_dir = "./doc/"
+home_dir = os.path.expanduser("~") + '/Data/PDF/'
+pdf_dir = home_dir + "Original/"
+pdf_repaired_dir = home_dir + "Repaired/"
+img_dir = home_dir + "Img/"
+img_pro_dir = home_dir + "Img_pro/"
+csv_dir = home_dir + "csv/"
+doc_dir = home_dir + "doc/"
 
 #read file names from pdf folder
 files = [img_pro_dir + filename for filename in os.listdir(img_pro_dir) if ".png" in filename]
@@ -93,7 +95,7 @@ if single_thread:
 # %% Apply OCR, multiprocessing
 tic = timer()
 data = pd.DataFrame()
-threads = max(1, int(processors / 2))
+threads = max(1, int(processors / 3)) #test for fatest ratio
 print('Threads used: ', threads, ' total_files =', len(files), ' time now ', int(tic))
         
 if __name__ == '__main__':
@@ -152,13 +154,15 @@ def convert_to_numeric(series):
     # If errors, force process to continue, invalid element returned as numpy.nan
     
 data['numerical'] = convert_to_numeric(data['text'])
-data.to_csv(csv_dir + 'data.csv')
+data.to_csv(csv_dir + 'data.csv', sep = '\t')
 print(data)
 
 # %% Start from here if data is saved
-datar = pd.read_csv(csv_dir + 'data.csv', header=0, index_col=0 )
+datar = pd.read_csv(csv_dir + 'data.csv', 
+                    header = 0, 
+                    sep = '\t') #dtype=str, 
 print(data.equals(datar))
-
+# %%
 # for debug
-#print(datar)
+print(datar)
 #print(data)

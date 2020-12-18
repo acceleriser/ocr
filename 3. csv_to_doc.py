@@ -27,15 +27,18 @@ print('processors: ', processors)
 
 
 # Get a list of all of the pdf files in the directory "example_data_PDF"
-pdf_dir = "./pdf/"
-img_dir = "./img/"
-img_pro_dir = "./img_pro/"
-csv_dir = "./csv/"
-doc_dir = "./doc/"
+home_dir = os.path.expanduser("~") + '/Data/PDF/'
+pdf_dir = home_dir + "Original/"
+pdf_repaired_dir = home_dir + "Repaired/"
+img_dir = home_dir + "Img/"
+img_pro_dir = home_dir + "Img_pro/"
+csv_dir = home_dir + "csv/"
+doc_dir = home_dir + "doc/"
 
 
 # %% Load saved data
-data = pd.read_csv(csv_dir + 'data.csv', header=0, index_col=0 )
+data = pd.read_csv(csv_dir + 'data.csv', header=0, 
+                   sep = '\t')
 print(data)
 
 # %%

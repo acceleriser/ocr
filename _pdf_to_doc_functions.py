@@ -16,15 +16,16 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import os
 
 # pylint: disable=C0301
-
-pdf_dir = "./pdf/"
-pdf_repaired_dir = "./pdfr/"
-img_dir = "./img/"
-img_pro_dir = "./img_pro/"
-csv_dir = "./csv/"
-doc_dir = "./doc/"
+home_dir = os.path.expanduser("~") + '/Data/PDF/'
+pdf_dir = home_dir + "Original/"
+pdf_repaired_dir = home_dir + "Repaired/"
+img_dir = home_dir + "Img/"
+img_pro_dir = home_dir + "Img_pro/"
+csv_dir = home_dir + "csv/"
+doc_dir = home_dir + "doc/"
 
 
 def imageplot(image):
@@ -39,8 +40,9 @@ def imageplot(image):
 def repairpdf(file, save_dir=pdf_repaired_dir):
     """repair malformed pdfs first"""
     doc = file.split('/')[-1].strip(".pdf")
+    print(doc, end=' ')
     retval = subprocess.call("pdftocairo -pdf " + file + " " + save_dir + doc + ".pdf", shell=True)
-    print(doc, retval, end=' | ')
+    print(retval, end=' | ')
     return retval
 
 
@@ -241,7 +243,7 @@ def detect_lines(w_page_df, height_tolerance=20.0):
     words_df = words_df[words_df['text'].isnull() == False]
     # Any word with height greater than 1/20th fraction of page height
     words_df = words_df[words_df['height'] < page_stats['height'] / height_tolerance]
-    words_df.to_csv(csv_dir + 'debug.csv')
+    #words_df.to_csv(csv_dir + 'debug.csv')
     # Iterate through every vertical pixel position, top (0) to bottom (height)
     for x in range(page_stats['height']):
         result = ((words_df['bottom'] >= x) & (words_df['top'] <= x)).sum() > 0
@@ -308,8 +310,9 @@ def extract_lines(w_page_df, lines):
                                               "conf":confidences[-2]},
                                              ignore_index=True)
             except: # pylint: disable=bare-except
-                print("Failed to process line: " + line_text)
-                traceback.print_exc()
+                #print("Failed to process line: " + line_text)
+                #traceback.print_exc()
+                pass
 
     return w_results
 
